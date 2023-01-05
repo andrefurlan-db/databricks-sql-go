@@ -191,7 +191,7 @@ func TestRowsFetchResultPageErrors(t *testing.T) {
 
 	rowSet = &rows{
 		nextRowNumber: -1,
-		client:        &cli_service.TCLIServiceClient{},
+		tclientc:      func() (cli_service.TCLIService, error) { return nil, nil },
 	}
 	err = rowSet.fetchResultPage()
 	assert.EqualError(t, err, errRowsFetchPriorToStart, "negative row number should return error")
@@ -221,7 +221,7 @@ func TestGetResultMetadataNoDirectResults(t *testing.T) {
 	var getMetadataCount, fetchResultsCount int
 
 	client := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
-	rowSet := &rows{client: client}
+	rowSet := &rows{tclientc: client}
 
 	metadata, err := rowSet.getResultMetadata()
 	assert.NotNil(t, metadata)
@@ -239,14 +239,17 @@ func TestGetResultMetadataWithDirectResults(t *testing.T) {
 	t.Parallel()
 	var getMetadataCount, fetchResultsCount int
 
-	client := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
-	rowSet := &rows{client: client}
+	tclientc := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
+	client, err := tclientc()
+	assert.NoError(t, err)
+	rowSet := &rows{tclientc: tclientc}
 
 	// simulate direct results by setting initial result page and
 	// metadata
 	req := &cli_service.TFetchResultsReq{
 		Orientation: cli_service.TFetchOrientation_FETCH_NEXT,
 	}
+
 	firstPage, _ := client.FetchResults(context.Background(), req)
 	rowSet.fetchResults = firstPage
 	// fetch results has been called once
@@ -259,7 +262,7 @@ func TestGetResultMetadataWithDirectResults(t *testing.T) {
 	assert.Equal(t, 1, fetchResultsCount)
 
 	// calling should not call into client again
-	metadata, err := rowSet.getResultMetadata()
+	metadata, err = rowSet.getResultMetadata()
 	assert.NotNil(t, metadata)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, getMetadataCount)
@@ -271,7 +274,7 @@ func TestRowsFetchResultPageNoDirectResults(t *testing.T) {
 	var getMetadataCount, fetchResultsCount int
 
 	client := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
-	rowSet := &rows{client: client}
+	rowSet := &rows{tclientc: client}
 
 	var i64Zero int64
 
@@ -365,8 +368,10 @@ func TestRowsFetchResultPageWithDirectResults(t *testing.T) {
 	var getMetadataCount, fetchResultsCount int
 	var i64Zero int64
 
-	client := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
-	rowSet := &rows{client: client}
+	tclientc := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
+	client, err := tclientc()
+	assert.NoError(t, err)
+	rowSet := &rows{tclientc: tclientc}
 	req := &cli_service.TFetchResultsReq{
 		Orientation: cli_service.TFetchOrientation_FETCH_NEXT,
 	}
@@ -376,7 +381,7 @@ func TestRowsFetchResultPageWithDirectResults(t *testing.T) {
 	assert.Equal(t, 1, fetchResultsCount)
 
 	// next row number is zero so should not fetch a result page again
-	err := rowSet.fetchResultPage()
+	err = rowSet.fetchResultPage()
 	rowTestPagingResult{
 		getMetadataCount:  0,
 		fetchResultsCount: 1,
@@ -484,7 +489,9 @@ func TestColumnsWithDirectResults(t *testing.T) {
 
 	rowSet := &rows{}
 	defer rowSet.Close()
-	client := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
+	tclientc := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
+	client, err := tclientc()
+	assert.NoError(t, err)
 
 	req := &cli_service.TFetchResultsReq{
 		Orientation: cli_service.TFetchOrientation_FETCH_NEXT,
@@ -501,7 +508,7 @@ func TestColumnsWithDirectResults(t *testing.T) {
 	assert.Equal(t, 1, getMetadataCount)
 
 	// getting column names should not call into client again
-	rowSet.client = client
+	rowSet.tclientc = tclientc
 	colNames := rowSet.Columns()
 	assert.NotNil(t, colNames)
 	assert.Equal(t, 17, len(colNames))
@@ -518,7 +525,7 @@ func TestColumnsNoDirectResults(t *testing.T) {
 	assert.Equal(t, 0, len(colNames))
 
 	client := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
-	rowSet.client = client
+	rowSet.tclientc = client
 	colNames = rowSet.Columns()
 	assert.NotNil(t, colNames)
 	assert.Equal(t, 17, len(colNames))
@@ -533,7 +540,7 @@ func TestNextNoDirectResults(t *testing.T) {
 
 	rowSet = &rows{}
 	client := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
-	rowSet.client = client
+	rowSet.tclientc = client
 
 	colNames := rowSet.Columns()
 	row := make([]driver.Value, len(colNames))
@@ -572,12 +579,15 @@ func TestNextWithDirectResults(t *testing.T) {
 	var getMetadataCount, fetchResultsCount int
 
 	rowSet := &rows{}
-	client := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
-	rowSet.client = client
+	tclientc := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
+	client, err := tclientc()
+	assert.NoError(t, err)
+	rowSet.tclientc = tclientc
 
 	req := &cli_service.TFetchResultsReq{
 		Orientation: cli_service.TFetchOrientation_FETCH_NEXT,
 	}
+
 	firstPage, _ := client.FetchResults(context.Background(), req)
 	rowSet.fetchResults = firstPage
 	// fetch results has been called once
@@ -592,7 +602,7 @@ func TestNextWithDirectResults(t *testing.T) {
 	colNames := rowSet.Columns()
 	row := make([]driver.Value, len(colNames))
 
-	err := rowSet.Next(row)
+	err = rowSet.Next(row)
 
 	timestamp, _ := time.Parse(dateTimeFormats["TIMESTAMP"], "2021-07-01 05:43:28")
 	date, _ := time.Parse(dateTimeFormats["DATE"], "2021-07-01")
@@ -694,7 +704,7 @@ func TestGetScanType(t *testing.T) {
 	assert.EqualError(t, err, errRowsNoClient)
 
 	client := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
-	rowSet.client = client
+	rowSet.tclientc = client
 
 	resp, err := rowSet.getResultMetadata()
 	assert.Nil(t, err)
@@ -774,7 +784,7 @@ func TestColumnTypeNullable(t *testing.T) {
 
 	rowSet := &rows{}
 	client := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
-	rowSet.client = client
+	rowSet.tclientc = client
 
 	colNames := rowSet.Columns()
 	for i := range colNames {
@@ -794,7 +804,7 @@ func TestColumnTypeLength(t *testing.T) {
 
 	rowSet = &rows{}
 	client := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
-	rowSet.client = client
+	rowSet.tclientc = client
 
 	colNames := rowSet.Columns()
 	for i := range colNames {
@@ -822,7 +832,7 @@ func TestColumnTypeDatabaseTypeName(t *testing.T) {
 
 	rowSet := &rows{}
 	client := getRowsTestSimpleClient(&getMetadataCount, &fetchResultsCount)
-	rowSet.client = client
+	rowSet.tclientc = client
 
 	resp, err := rowSet.getResultMetadata()
 	assert.Nil(t, err)
@@ -868,8 +878,11 @@ func TestRowsCloseOptimization(t *testing.T) {
 			return nil, nil
 		},
 	}
+	tclientc := func() (cli_service.TCLIService, error) {
+		return client, nil
+	}
 
-	rowSet := NewRows("", "", client, &cli_service.TOperationHandle{}, 1, nil, nil)
+	rowSet := NewRows("", "", tclientc, &cli_service.TOperationHandle{}, 1, nil, nil)
 
 	// rowSet has no direct results calling Close should result in call to client to close operation
 	err := rowSet.Close()
@@ -878,7 +891,7 @@ func TestRowsCloseOptimization(t *testing.T) {
 
 	// rowSet has direct results, but operation was not closed so it should call client to close operation
 	closeCount = 0
-	rowSet = NewRows("", "", client, &cli_service.TOperationHandle{}, 1, nil, &cli_service.TSparkDirectResults{})
+	rowSet = NewRows("", "", tclientc, &cli_service.TOperationHandle{}, 1, nil, &cli_service.TSparkDirectResults{})
 	err = rowSet.Close()
 	assert.Nil(t, err, "rows.Close should not throw an error")
 	assert.Equal(t, 1, closeCount)
@@ -886,7 +899,7 @@ func TestRowsCloseOptimization(t *testing.T) {
 	// rowSet has direct results which include a close operation response.  rowSet should be marked as closed
 	// and calling Close should not call into the client.
 	closeCount = 0
-	rowSet = NewRows("", "", client, &cli_service.TOperationHandle{}, 1, nil, &cli_service.TSparkDirectResults{CloseOperation: &cli_service.TCloseOperationResp{}})
+	rowSet = NewRows("", "", tclientc, &cli_service.TOperationHandle{}, 1, nil, &cli_service.TSparkDirectResults{CloseOperation: &cli_service.TCloseOperationResp{}})
 	err = rowSet.Close()
 	assert.Nil(t, err, "rows.Close should not throw an error")
 	assert.Equal(t, 0, closeCount)
@@ -916,7 +929,7 @@ func (rt rowTestPagingResult) validatePaging(t *testing.T, rowSet *rows, err err
 }
 
 // Build a simple test client
-func getRowsTestSimpleClient(getMetadataCount, fetchResultsCount *int) cli_service.TCLIService {
+func getRowsTestSimpleClient(getMetadataCount, fetchResultsCount *int) client.Creator {
 	// Metadata for the different types is based on the results returned when querying a table with
 	// all the different types which was created in a test shard.
 	metadata := &cli_service.TGetResultSetMetadataResp{
@@ -1304,5 +1317,7 @@ func getRowsTestSimpleClient(getMetadataCount, fetchResultsCount *int) cli_servi
 		FnFetchResults:         fetchResults,
 	}
 
-	return client
+	return func() (cli_service.TCLIService, error) {
+		return client, nil
+	}
 }

@@ -58,10 +58,9 @@ test: bin/gotestsum  ## Run the go unit tests.
 	CGO_ENABLED=0 ./bin/gotestsum --format pkgname-and-test-fails --junitfile $(TEST_RESULTS_DIR)/unit-tests.xml ./...
 
 .PHONY: test-race
-test-race:
+test-race:  ## Check for race conditions
 	@echo "INFO: Running all go unit tests."
 	go test -race
-
 
 .PHONY: coverage
 coverage: bin/gotestsum  ## Report the unit test code coverage.

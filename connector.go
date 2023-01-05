@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql/driver"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/databricks/databricks-sql-go/auth/pat"
 	"github.com/databricks/databricks-sql-go/driverctx"
 	"github.com/databricks/databricks-sql-go/internal/cli_service"
 	"github.com/databricks/databricks-sql-go/internal/client"
@@ -15,7 +17,8 @@ import (
 )
 
 type connector struct {
-	cfg *config.Config
+	cfg    *config.Config
+	client *http.Client
 }
 
 // Connect returns a connection to the Databricks database from a connection pool.
@@ -28,8 +31,9 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if c.cfg.Schema != "" {
 		schemaName = cli_service.TIdentifierPtr(cli_service.TIdentifier(c.cfg.Schema))
 	}
+	tclientc := client.TClientCreator(c.cfg, c.client)
 
-	tclient, err := client.InitThriftClient(c.cfg)
+	tclient, err := tclientc()
 	if err != nil {
 		return nil, wrapErr(err, "error initializing thrift client")
 	}
@@ -49,10 +53,10 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	conn := &conn{
-		id:      client.SprintGuid(session.SessionHandle.GetSessionId().GUID),
-		cfg:     c.cfg,
-		client:  tclient,
-		session: session,
+		id:       client.SprintGuid(session.SessionHandle.GetSessionId().GUID),
+		cfg:      c.cfg,
+		tclientc: tclientc,
+		session:  session,
 	}
 	log := logger.WithContext(conn.id, driverctx.CorrelationIdFromContext(ctx), "")
 
@@ -88,7 +92,10 @@ func NewConnector(options ...connOption) (driver.Connector, error) {
 		opt(cfg)
 	}
 
-	return &connector{cfg: cfg}, nil
+	c := client.PooledClient(cfg.Authenticator)
+	c.Timeout = cfg.ClientTimeout
+
+	return &connector{cfg: cfg, client: c}, nil
 }
 
 // WithServerHostname sets up the server hostname. Mandatory.
@@ -112,6 +119,12 @@ func WithPort(port int) connOption {
 func WithAccessToken(token string) connOption {
 	return func(c *config.Config) {
 		c.AccessToken = token
+		if token != "" {
+			pat := &pat.PATAuth{
+				AccessToken: token,
+			}
+			c.Authenticator = pat
+		}
 	}
 }
 

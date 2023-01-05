@@ -18,7 +18,7 @@ import (
 )
 
 type rows struct {
-	client               cli_service.TCLIService
+	tclientc             client.Creator
 	connId               string
 	correlationId        string
 	opHandle             *cli_service.TOperationHandle
@@ -45,11 +45,11 @@ var errRowsParseValue = "databricks: unable to parse %s value '%s' from column %
 
 // NewRows generates a new rows object given the rows' fields.
 // NewRows will also parse directResults if it is available for some rows' fields.
-func NewRows(connID string, corrId string, client cli_service.TCLIService, opHandle *cli_service.TOperationHandle, pageSize int64, location *time.Location, directResults *cli_service.TSparkDirectResults) driver.Rows {
+func NewRows(connID string, corrId string, client client.Creator, opHandle *cli_service.TOperationHandle, pageSize int64, location *time.Location, directResults *cli_service.TSparkDirectResults) driver.Rows {
 	r := &rows{
 		connId:        connID,
 		correlationId: corrId,
-		client:        client,
+		tclientc:      client,
 		opHandle:      opHandle,
 		pageSize:      pageSize,
 		location:      location,
@@ -107,8 +107,11 @@ func (r *rows) Close() error {
 			OperationHandle: r.opHandle,
 		}
 		ctx := driverctx.NewContextWithCorrelationId(driverctx.NewContextWithConnId(context.Background(), r.connId), r.correlationId)
-
-		_, err1 := r.client.CloseOperation(ctx, &req)
+		tclient, err := r.tclientc()
+		if err != nil {
+			return err
+		}
+		_, err1 := tclient.CloseOperation(ctx, &req)
 		if err1 != nil {
 			return err1
 		}
@@ -303,7 +306,7 @@ func isValidRows(r *rows) error {
 		return errors.New(errRowsNilRows)
 	}
 
-	if r.client == nil {
+	if r.tclientc == nil {
 		return errors.New(errRowsNoClient)
 	}
 
@@ -360,8 +363,11 @@ func (r *rows) getResultMetadata() (*cli_service.TGetResultSetMetadataResp, erro
 			OperationHandle: r.opHandle,
 		}
 		ctx := driverctx.NewContextWithCorrelationId(driverctx.NewContextWithConnId(context.Background(), r.connId), r.correlationId)
-
-		resp, err := r.client.GetResultSetMetadata(ctx, &req)
+		tclient, err := r.tclientc()
+		if err != nil {
+			return nil, err
+		}
+		resp, err := tclient.GetResultSetMetadata(ctx, &req)
 		if err != nil {
 			return nil, err
 		}
@@ -409,7 +415,11 @@ func (r *rows) fetchResultPage() error {
 		}
 		ctx := driverctx.NewContextWithCorrelationId(driverctx.NewContextWithConnId(context.Background(), r.connId), r.correlationId)
 		log.Debug().Msgf("fetching next batch of %d rows", r.pageSize)
-		fetchResult, err := r.client.FetchResults(ctx, &req)
+		tclient, err := r.tclientc()
+		if err != nil {
+			return err
+		}
+		fetchResult, err := tclient.FetchResults(ctx, &req)
 		if err != nil {
 			return err
 		}

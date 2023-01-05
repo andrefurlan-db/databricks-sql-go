@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 
+	"github.com/databricks/databricks-sql-go/internal/client"
 	"github.com/databricks/databricks-sql-go/internal/config"
 	_ "github.com/databricks/databricks-sql-go/logger"
 )
@@ -24,10 +25,13 @@ func (d *databricksDriver) Open(dsn string) (driver.Conn, error) {
 		return nil, err
 	}
 	cfg.UserConfig = userCfg
-	c := &connector{
-		cfg: cfg,
+	c := client.RetryableClient(cfg)
+	c.Timeout = cfg.ClientTimeout
+	cn := &connector{
+		cfg:    cfg,
+		client: c,
 	}
-	return c.Connect(context.Background())
+	return cn.Connect(context.Background())
 }
 
 // OpenConnector returns a new Connector.
@@ -39,8 +43,10 @@ func (d *databricksDriver) OpenConnector(dsn string) (driver.Connector, error) {
 		return nil, err
 	}
 	cfg.UserConfig = ucfg
+	c := client.RetryableClient(cfg)
+	c.Timeout = cfg.ClientTimeout
 
-	return &connector{cfg: cfg}, nil
+	return &connector{cfg: cfg, client: c}, nil
 }
 
 var _ driver.Driver = (*databricksDriver)(nil)

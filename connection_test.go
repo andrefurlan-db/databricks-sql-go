@@ -23,13 +23,15 @@ func TestConn_executeStatement(t *testing.T) {
 			executeStatementCount++
 			return nil, fmt.Errorf("error")
 		}
-		testClient := &client.TestClient{
-			FnExecuteStatement: executeStatement,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnExecuteStatement: executeStatement,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		_, err := testConn.executeStatement(context.Background(), "select 1", []driver.NamedValue{})
 		assert.Error(t, err)
@@ -73,13 +75,16 @@ func TestConn_executeStatement(t *testing.T) {
 			}
 			return executeStatementResp, nil
 		}
-		testClient := &client.TestClient{
-			FnExecuteStatement: executeStatement,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnExecuteStatement: executeStatement,
+			}, nil
 		}
+
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		_, err := testConn.executeStatement(context.Background(), "select 1", []driver.NamedValue{})
 
@@ -121,20 +126,22 @@ func TestConn_executeStatement(t *testing.T) {
 			},
 		}
 
-		testClient := &client.TestClient{
-			FnExecuteStatement: func(ctx context.Context, req *cli_service.TExecuteStatementReq) (r *cli_service.TExecuteStatementResp, err error) {
-				executeStatementCount++
-				return executeStatementResp, nil
-			},
-			FnCloseOperation: func(ctx context.Context, req *cli_service.TCloseOperationReq) (_r *cli_service.TCloseOperationResp, _err error) {
-				closeOperationCount++
-				return &cli_service.TCloseOperationResp{}, nil
-			},
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnExecuteStatement: func(ctx context.Context, req *cli_service.TExecuteStatementReq) (r *cli_service.TExecuteStatementResp, err error) {
+					executeStatementCount++
+					return executeStatementResp, nil
+				},
+				FnCloseOperation: func(ctx context.Context, req *cli_service.TCloseOperationReq) (_r *cli_service.TCloseOperationResp, _err error) {
+					closeOperationCount++
+					return &cli_service.TCloseOperationResp{}, nil
+				},
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 
 		type opStateTest struct {
@@ -234,14 +241,17 @@ func TestConn_executeStatement(t *testing.T) {
 			}
 			return cancelOperationResp, nil
 		}
-		testClient := &client.TestClient{
-			FnExecuteStatement: executeStatement,
-			FnCancelOperation:  cancelOperation,
+
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnExecuteStatement: executeStatement,
+				FnCancelOperation:  cancelOperation,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 
 		ctx := context.Background()
@@ -302,14 +312,17 @@ func TestConn_executeStatement(t *testing.T) {
 			}
 			return cancelOperationResp, nil
 		}
-		testClient := &client.TestClient{
-			FnExecuteStatement: executeStatement,
-			FnCancelOperation:  cancelOperation,
+
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnExecuteStatement: executeStatement,
+				FnCancelOperation:  cancelOperation,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		ctx := context.Background()
 		ctx, cancel = context.WithCancel(ctx)
@@ -334,13 +347,16 @@ func TestConn_pollOperation(t *testing.T) {
 			}
 			return getOperationStatusResp, nil
 		}
-		testClient := &client.TestClient{
-			FnGetOperationStatus: getOperationStatus,
+
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		res, err := testConn.pollOperation(context.Background(), &cli_service.TOperationHandle{
 			OperationId: &cli_service.THandleIdentifier{
@@ -364,13 +380,16 @@ func TestConn_pollOperation(t *testing.T) {
 			}
 			return getOperationStatusResp, nil
 		}
-		testClient := &client.TestClient{
-			FnGetOperationStatus: getOperationStatus,
+
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		res, err := testConn.pollOperation(context.Background(), &cli_service.TOperationHandle{
 			OperationId: &cli_service.THandleIdentifier{
@@ -394,13 +413,15 @@ func TestConn_pollOperation(t *testing.T) {
 			}
 			return getOperationStatusResp, nil
 		}
-		testClient := &client.TestClient{
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		res, err := testConn.pollOperation(context.Background(), &cli_service.TOperationHandle{
 			OperationId: &cli_service.THandleIdentifier{
@@ -424,13 +445,15 @@ func TestConn_pollOperation(t *testing.T) {
 			}
 			return getOperationStatusResp, nil
 		}
-		testClient := &client.TestClient{
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		res, err := testConn.pollOperation(context.Background(), &cli_service.TOperationHandle{
 			OperationId: &cli_service.THandleIdentifier{
@@ -454,13 +477,15 @@ func TestConn_pollOperation(t *testing.T) {
 			}
 			return getOperationStatusResp, nil
 		}
-		testClient := &client.TestClient{
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		res, err := testConn.pollOperation(context.Background(), &cli_service.TOperationHandle{
 			OperationId: &cli_service.THandleIdentifier{
@@ -486,13 +511,15 @@ func TestConn_pollOperation(t *testing.T) {
 			}
 			return getOperationStatusResp, nil
 		}
-		testClient := &client.TestClient{
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		res, err := testConn.pollOperation(context.Background(), &cli_service.TOperationHandle{
 			OperationId: &cli_service.THandleIdentifier{
@@ -527,14 +554,16 @@ func TestConn_pollOperation(t *testing.T) {
 			}
 			return cancelOperationResp, nil
 		}
-		testClient := &client.TestClient{
-			FnGetOperationStatus: getOperationStatus,
-			FnCancelOperation:    cancelOperation,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+				FnCancelOperation:    cancelOperation,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 		defer cancel()
@@ -570,16 +599,18 @@ func TestConn_pollOperation(t *testing.T) {
 			}
 			return cancelOperationResp, nil
 		}
-		testClient := &client.TestClient{
-			FnGetOperationStatus: getOperationStatus,
-			FnCancelOperation:    cancelOperation,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+				FnCancelOperation:    cancelOperation,
+			}, nil
 		}
 		cfg := config.WithDefaults()
 		cfg.PollInterval = 100 * time.Millisecond
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     cfg,
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      cfg,
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 		defer cancel()
@@ -616,16 +647,18 @@ func TestConn_pollOperation(t *testing.T) {
 			}
 			return cancelOperationResp, nil
 		}
-		testClient := &client.TestClient{
-			FnGetOperationStatus: getOperationStatus,
-			FnCancelOperation:    cancelOperation,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+				FnCancelOperation:    cancelOperation,
+			}, nil
 		}
 		cfg := config.WithDefaults()
 		cfg.PollInterval = 100 * time.Millisecond
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     cfg,
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      cfg,
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -654,13 +687,15 @@ func TestConn_runQuery(t *testing.T) {
 			executeStatementCount++
 			return nil, fmt.Errorf("error")
 		}
-		testClient := &client.TestClient{
-			FnExecuteStatement: executeStatement,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnExecuteStatement: executeStatement,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		exStmtResp, opStatusResp, err := testConn.runQuery(context.Background(), "select 1", []driver.NamedValue{})
 		assert.Error(t, err)
@@ -695,14 +730,16 @@ func TestConn_runQuery(t *testing.T) {
 			return getOperationStatusResp, fmt.Errorf("error on get operation status")
 		}
 
-		testClient := &client.TestClient{
-			FnExecuteStatement:   executeStatement,
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+				FnExecuteStatement:   executeStatement,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		exStmtResp, opStatusResp, err := testConn.runQuery(context.Background(), "select 1", []driver.NamedValue{})
 
@@ -741,14 +778,16 @@ func TestConn_runQuery(t *testing.T) {
 			return getOperationStatusResp, nil
 		}
 
-		testClient := &client.TestClient{
-			FnExecuteStatement:   executeStatement,
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+				FnExecuteStatement:   executeStatement,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		exStmtResp, opStatusResp, err := testConn.runQuery(context.Background(), "select 1", []driver.NamedValue{})
 
@@ -788,14 +827,16 @@ func TestConn_runQuery(t *testing.T) {
 			return getOperationStatusResp, nil
 		}
 
-		testClient := &client.TestClient{
-			FnExecuteStatement:   executeStatement,
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+				FnExecuteStatement:   executeStatement,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		exStmtResp, opStatusResp, err := testConn.runQuery(context.Background(), "select 1", []driver.NamedValue{})
 
@@ -841,14 +882,16 @@ func TestConn_runQuery(t *testing.T) {
 			return getOperationStatusResp, nil
 		}
 
-		testClient := &client.TestClient{
-			FnExecuteStatement:   executeStatement,
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+				FnExecuteStatement:   executeStatement,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		exStmtResp, opStatusResp, err := testConn.runQuery(context.Background(), "select 1", []driver.NamedValue{})
 
@@ -893,14 +936,16 @@ func TestConn_runQuery(t *testing.T) {
 			return getOperationStatusResp, nil
 		}
 
-		testClient := &client.TestClient{
-			FnExecuteStatement:   executeStatement,
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+				FnExecuteStatement:   executeStatement,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		exStmtResp, opStatusResp, err := testConn.runQuery(context.Background(), "select 1", []driver.NamedValue{})
 
@@ -946,14 +991,16 @@ func TestConn_runQuery(t *testing.T) {
 			return getOperationStatusResp, nil
 		}
 
-		testClient := &client.TestClient{
-			FnExecuteStatement:   executeStatement,
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+				FnExecuteStatement:   executeStatement,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		exStmtResp, opStatusResp, err := testConn.runQuery(context.Background(), "select 1", []driver.NamedValue{})
 
@@ -999,14 +1046,16 @@ func TestConn_runQuery(t *testing.T) {
 			return getOperationStatusResp, nil
 		}
 
-		testClient := &client.TestClient{
-			FnExecuteStatement:   executeStatement,
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnGetOperationStatus: getOperationStatus,
+				FnExecuteStatement:   executeStatement,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		exStmtResp, opStatusResp, err := testConn.runQuery(context.Background(), "select 1", []driver.NamedValue{})
 
@@ -1023,11 +1072,13 @@ func TestConn_ExecContext(t *testing.T) {
 	t.Run("ExecContext currently does not support query parameters", func(t *testing.T) {
 		var executeStatementCount int
 
-		testClient := &client.TestClient{}
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{}, nil
+		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		res, err := testConn.ExecContext(context.Background(), "select 1", []driver.NamedValue{
 			{Value: 1, Name: "name"},
@@ -1055,19 +1106,20 @@ func TestConn_ExecContext(t *testing.T) {
 			}
 			return executeStatementResp, fmt.Errorf("error")
 		}
-
-		testClient := &client.TestClient{
-			FnExecuteStatement: executeStatement,
-			FnCloseOperation: func(ctx context.Context, req *cli_service.TCloseOperationReq) (_r *cli_service.TCloseOperationResp, _err error) {
-				ctxErr := ctx.Err()
-				assert.NoError(t, ctxErr)
-				return &cli_service.TCloseOperationResp{}, nil
-			},
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnExecuteStatement: executeStatement,
+				FnCloseOperation: func(ctx context.Context, req *cli_service.TCloseOperationReq) (_r *cli_service.TCloseOperationResp, _err error) {
+					ctxErr := ctx.Err()
+					assert.NoError(t, ctxErr)
+					return &cli_service.TCloseOperationResp{}, nil
+				},
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		res, err := testConn.ExecContext(context.Background(), "select 1", []driver.NamedValue{})
 
@@ -1102,20 +1154,22 @@ func TestConn_ExecContext(t *testing.T) {
 			}
 			return getOperationStatusResp, nil
 		}
-
-		testClient := &client.TestClient{
-			FnExecuteStatement:   executeStatement,
-			FnGetOperationStatus: getOperationStatus,
-			FnCloseOperation: func(ctx context.Context, req *cli_service.TCloseOperationReq) (_r *cli_service.TCloseOperationResp, _err error) {
-				ctxErr := ctx.Err()
-				assert.NoError(t, ctxErr)
-				return &cli_service.TCloseOperationResp{}, nil
-			},
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnExecuteStatement:   executeStatement,
+				FnGetOperationStatus: getOperationStatus,
+				FnCloseOperation: func(ctx context.Context, req *cli_service.TCloseOperationReq) (_r *cli_service.TCloseOperationResp, _err error) {
+					ctxErr := ctx.Err()
+					assert.NoError(t, ctxErr)
+					return &cli_service.TCloseOperationResp{}, nil
+				},
+			}, nil
 		}
+
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		res, err := testConn.ExecContext(context.Background(), "insert 10", []driver.NamedValue{})
 
@@ -1153,30 +1207,32 @@ func TestConn_ExecContext(t *testing.T) {
 			}
 			return getOperationStatusResp, nil
 		}
-
-		testClient := &client.TestClient{
-			FnExecuteStatement:   executeStatement,
-			FnGetOperationStatus: getOperationStatus,
-			FnCloseOperation: func(ctx context.Context, req *cli_service.TCloseOperationReq) (_r *cli_service.TCloseOperationResp, _err error) {
-				closeOperationCount++
-				ctxErr := ctx.Err()
-				assert.NoError(t, ctxErr)
-				return &cli_service.TCloseOperationResp{}, nil
-			},
-			FnCancelOperation: func(ctx context.Context, req *cli_service.TCancelOperationReq) (r *cli_service.TCancelOperationResp, err error) {
-				cancelOperationCount++
-				cancelOperationResp := &cli_service.TCancelOperationResp{
-					Status: &cli_service.TStatus{
-						StatusCode: cli_service.TStatusCode_SUCCESS_STATUS,
-					},
-				}
-				return cancelOperationResp, nil
-			},
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnExecuteStatement:   executeStatement,
+				FnGetOperationStatus: getOperationStatus,
+				FnCloseOperation: func(ctx context.Context, req *cli_service.TCloseOperationReq) (_r *cli_service.TCloseOperationResp, _err error) {
+					closeOperationCount++
+					ctxErr := ctx.Err()
+					assert.NoError(t, ctxErr)
+					return &cli_service.TCloseOperationResp{}, nil
+				},
+				FnCancelOperation: func(ctx context.Context, req *cli_service.TCancelOperationReq) (r *cli_service.TCancelOperationResp, err error) {
+					cancelOperationCount++
+					cancelOperationResp := &cli_service.TCancelOperationResp{
+						Status: &cli_service.TStatus{
+							StatusCode: cli_service.TStatusCode_SUCCESS_STATUS,
+						},
+					}
+					return cancelOperationResp, nil
+				},
+			}, nil
 		}
+
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		ctx := context.Background()
 		ctx, cancel = context.WithCancel(ctx)
@@ -1196,11 +1252,13 @@ func TestConn_QueryContext(t *testing.T) {
 	t.Run("QueryContext currently does not support query parameters", func(t *testing.T) {
 		var executeStatementCount int
 
-		testClient := &client.TestClient{}
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{}, nil
+		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		res, err := testConn.QueryContext(context.Background(), "select 1", []driver.NamedValue{
 			{Value: 1, Name: "name"},
@@ -1228,14 +1286,16 @@ func TestConn_QueryContext(t *testing.T) {
 			}
 			return executeStatementResp, fmt.Errorf("error")
 		}
-
-		testClient := &client.TestClient{
-			FnExecuteStatement: executeStatement,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnExecuteStatement: executeStatement,
+			}, nil
 		}
+
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		res, err := testConn.QueryContext(context.Background(), "select 1", []driver.NamedValue{})
 
@@ -1270,15 +1330,17 @@ func TestConn_QueryContext(t *testing.T) {
 			}
 			return getOperationStatusResp, nil
 		}
-
-		testClient := &client.TestClient{
-			FnExecuteStatement:   executeStatement,
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnExecuteStatement:   executeStatement,
+				FnGetOperationStatus: getOperationStatus,
+			}, nil
 		}
+
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		rows, err := testConn.QueryContext(context.Background(), "select 1", []driver.NamedValue{})
 
@@ -1306,14 +1368,16 @@ func TestConn_Ping(t *testing.T) {
 			}
 			return executeStatementResp, nil
 		}
-
-		testClient := &client.TestClient{
-			FnExecuteStatement: executeStatement,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnExecuteStatement: executeStatement,
+			}, nil
 		}
+
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		err := testConn.Ping(context.Background())
 
@@ -1347,16 +1411,17 @@ func TestConn_Ping(t *testing.T) {
 			}
 			return getOperationStatusResp, nil
 		}
-
-		testClient := &client.TestClient{
-			FnExecuteStatement:   executeStatement,
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnExecuteStatement:   executeStatement,
+				FnGetOperationStatus: getOperationStatus,
+			}, nil
 		}
 
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		err := testConn.Ping(context.Background())
 
@@ -1368,9 +1433,9 @@ func TestConn_Ping(t *testing.T) {
 func TestConn_Begin(t *testing.T) {
 	t.Run("Begin not supported", func(t *testing.T) {
 		testConn := &conn{
-			session: getTestSession(),
-			client:  &client.TestClient{},
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: func() (cli_service.TCLIService, error) { return nil, nil },
+			cfg:      config.WithDefaults(),
 		}
 		res, err := testConn.Begin()
 		assert.Nil(t, res)
@@ -1381,9 +1446,9 @@ func TestConn_Begin(t *testing.T) {
 func TestConn_BeginTx(t *testing.T) {
 	t.Run("BeginTx not supported", func(t *testing.T) {
 		testConn := &conn{
-			session: getTestSession(),
-			client:  &client.TestClient{},
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: func() (cli_service.TCLIService, error) { return nil, nil },
+			cfg:      config.WithDefaults(),
 		}
 		res, err := testConn.BeginTx(context.Background(), driver.TxOptions{})
 		assert.Nil(t, res)
@@ -1394,9 +1459,9 @@ func TestConn_BeginTx(t *testing.T) {
 func TestConn_ResetSession(t *testing.T) {
 	t.Run("ResetSession not currently supported", func(t *testing.T) {
 		testConn := &conn{
-			session: getTestSession(),
-			client:  &client.TestClient{},
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: func() (cli_service.TCLIService, error) { return nil, nil },
+			cfg:      config.WithDefaults(),
 		}
 		res := testConn.ResetSession(context.Background())
 		assert.Nil(t, res)
@@ -1417,13 +1482,15 @@ func TestConn_Close(t *testing.T) {
 			return closeSessionResp, nil
 		}
 
-		testClient := &client.TestClient{
-			FnCloseSession: closeSession,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnCloseSession: closeSession,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		err := testConn.Close()
 
@@ -1444,13 +1511,15 @@ func TestConn_Close(t *testing.T) {
 			return closeSessionResp, fmt.Errorf("error")
 		}
 
-		testClient := &client.TestClient{
-			FnCloseSession: closeSession,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+				FnCloseSession: closeSession,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		err := testConn.Close()
 
@@ -1461,11 +1530,11 @@ func TestConn_Close(t *testing.T) {
 
 func TestConn_Prepare(t *testing.T) {
 	t.Run("Prepare returns stmt struct", func(t *testing.T) {
-		testClient := &client.TestClient{}
+
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: func() (cli_service.TCLIService, error) { return nil, nil },
+			cfg:      config.WithDefaults(),
 		}
 		stmt, err := testConn.Prepare("query string")
 		assert.NoError(t, err)
@@ -1475,11 +1544,11 @@ func TestConn_Prepare(t *testing.T) {
 
 func TestConn_PrepareContext(t *testing.T) {
 	t.Run("PrepareContext returns stmt struct", func(t *testing.T) {
-		testClient := &client.TestClient{}
+
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: func() (cli_service.TCLIService, error) { return nil, nil },
+			cfg:      config.WithDefaults(),
 		}
 		stmt, err := testConn.PrepareContext(context.Background(), "query string")
 		assert.NoError(t, err)

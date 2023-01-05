@@ -15,10 +15,10 @@ import (
 )
 
 type conn struct {
-	id      string
-	cfg     *config.Config
-	client  cli_service.TCLIService
-	session *cli_service.TOpenSessionResp
+	id       string
+	cfg      *config.Config
+	tclientc client.Creator
+	session  *cli_service.TOpenSessionResp
 }
 
 // Prepare prepares a statement with the query bound to this connection.
@@ -37,8 +37,11 @@ func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, e
 func (c *conn) Close() error {
 	log := logger.WithContext(c.id, "", "")
 	ctx := driverctx.NewContextWithConnId(context.Background(), c.id)
-
-	_, err := c.client.CloseSession(ctx, &cli_service.TCloseSessionReq{
+	tclient, err := c.tclientc()
+	if err != nil {
+		return err
+	}
+	_, err = tclient.CloseSession(ctx, &cli_service.TCloseSessionReq{
 		SessionHandle: c.session.SessionHandle,
 	})
 
@@ -110,7 +113,11 @@ func (c *conn) ExecContext(ctx context.Context, query string, args []driver.Name
 		alreadyClosed := exStmtResp.DirectResults != nil && exStmtResp.DirectResults.CloseOperation != nil
 		newCtx := driverctx.NewContextWithCorrelationId(driverctx.NewContextWithConnId(context.Background(), c.id), corrId)
 		if !alreadyClosed && (opStatusResp == nil || opStatusResp.GetOperationState() != cli_service.TOperationState_CLOSED_STATE) {
-			_, err1 := c.client.CloseOperation(newCtx, &cli_service.TCloseOperationReq{
+			tclient, err := c.tclientc()
+			if err != nil {
+				return nil, err
+			}
+			_, err1 := tclient.CloseOperation(newCtx, &cli_service.TCloseOperationReq{
 				OperationHandle: exStmtResp.OperationHandle,
 			})
 			if err1 != nil {
@@ -158,7 +165,7 @@ func (c *conn) QueryContext(ctx context.Context, query string, args []driver.Nam
 	// hold on to the operation handle
 	opHandle := exStmtResp.OperationHandle
 
-	rows := NewRows(c.id, corrId, c.client, opHandle, int64(c.cfg.MaxRows), c.cfg.Location, exStmtResp.DirectResults)
+	rows := NewRows(c.id, corrId, c.tclientc, opHandle, int64(c.cfg.MaxRows), c.cfg.Location, exStmtResp.DirectResults)
 
 	return rows, nil
 
@@ -272,7 +279,11 @@ func (c *conn) executeStatement(ctx context.Context, query string, args []driver
 	}
 
 	ctx = driverctx.NewContextWithConnId(ctx, c.id)
-	resp, err := c.client.ExecuteStatement(ctx, &req)
+	tclient, err := c.tclientc()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := tclient.ExecuteStatement(ctx, &req)
 
 	var shouldCancel = func(resp *cli_service.TExecuteStatementResp) bool {
 		if resp == nil {
@@ -290,7 +301,7 @@ func (c *conn) executeStatement(ctx context.Context, query string, args []driver
 		// in case context is done, we need to cancel the operation if necessary
 		if err == nil && shouldCancel(resp) {
 			log.Debug().Msg("databricks: canceling query")
-			_, err1 := c.client.CancelOperation(newCtx, &cli_service.TCancelOperationReq{
+			_, err1 := tclient.CancelOperation(newCtx, &cli_service.TCancelOperationReq{
 				OperationHandle: resp.GetOperationHandle(),
 			})
 
@@ -321,12 +332,16 @@ func (c *conn) pollOperation(ctx context.Context, opHandle *cli_service.TOperati
 		StatusFn: func() (sentinel.Done, any, error) {
 			var err error
 			log.Debug().Msg("databricks: polling status")
-			statusResp, err = c.client.GetOperationStatus(newCtx, &cli_service.TGetOperationStatusReq{
-				OperationHandle: opHandle,
-			})
-			if statusResp != nil && statusResp.OperationState != nil {
-				log.Debug().Msgf("databricks: status %s", statusResp.GetOperationState().String())
+			tclient, err := c.tclientc()
+			if err == nil {
+				statusResp, err = tclient.GetOperationStatus(newCtx, &cli_service.TGetOperationStatusReq{
+					OperationHandle: opHandle,
+				})
+				if statusResp != nil && statusResp.OperationState != nil {
+					log.Debug().Msgf("databricks: status %s", statusResp.GetOperationState().String())
+				}
 			}
+
 			return func() bool {
 				if err != nil {
 					return true
@@ -344,7 +359,11 @@ func (c *conn) pollOperation(ctx context.Context, opHandle *cli_service.TOperati
 		},
 		OnCancelFn: func() (any, error) {
 			log.Debug().Msg("databricks: canceling query")
-			ret, err := c.client.CancelOperation(newCtx, &cli_service.TCancelOperationReq{
+			tclient, err := c.tclientc()
+			if err != nil {
+				return nil, err
+			}
+			ret, err := tclient.CancelOperation(newCtx, &cli_service.TCancelOperationReq{
 				OperationHandle: opHandle,
 			})
 			return ret, err

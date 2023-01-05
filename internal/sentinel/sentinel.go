@@ -83,6 +83,15 @@ func (s Sentinel) Watch(ctx context.Context, interval, timeout time.Duration) (W
 			resCh <- ret
 		}
 	}
+	canceler := func(ctx context.Context, reason string) {
+		_, err := s.OnCancelFn()
+		if err != nil {
+			log.Err(err).Msgf("cancel failed after %s", reason)
+			return
+		}
+		log.Debug().Msgf("cancel success")
+	}
+
 	for {
 		select {
 		case <-intervalTimer.C:
@@ -108,12 +117,7 @@ func (s Sentinel) Watch(ctx context.Context, interval, timeout time.Duration) (W
 			_ = intervalTimer.Stop()
 			if s.OnCancelFn != nil && !s.onCancelFnCalled {
 				s.onCancelFnCalled = true
-				_, err := s.OnCancelFn()
-				if err != nil {
-					log.Err(err).Msg("cancel failed")
-					return WatchCanceled, nil, errors.Wrap(err, ctx.Err().Error())
-				}
-				log.Debug().Msgf("cancel success")
+				go canceler(ctx, ctx.Err().Error())
 			}
 			return WatchCanceled, nil, errors.Wrap(ctx.Err(), "sentinel context done")
 		case <-timeoutTimerCh:
@@ -122,14 +126,8 @@ func (s Sentinel) Watch(ctx context.Context, interval, timeout time.Duration) (W
 			_ = intervalTimer.Stop()
 			if s.OnCancelFn != nil && !s.onCancelFnCalled {
 				s.onCancelFnCalled = true
-				_, err := s.OnCancelFn()
-				if err != nil {
-					log.Err(err).Msg("cancel failed")
-					return WatchCanceled, nil, errors.Wrap(err, ctx.Err().Error())
-				}
-				log.Debug().Msgf("cancel success")
+				go canceler(ctx, err.Error())
 			}
-
 			return WatchTimeout, nil, err
 		}
 	}

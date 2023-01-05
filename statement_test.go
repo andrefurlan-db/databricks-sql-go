@@ -3,12 +3,13 @@ package dbsql
 import (
 	"context"
 	"database/sql/driver"
+	"testing"
+
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/databricks/databricks-sql-go/internal/cli_service"
 	"github.com/databricks/databricks-sql-go/internal/client"
 	"github.com/databricks/databricks-sql-go/internal/config"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestStmt_Close(t *testing.T) {
@@ -87,14 +88,17 @@ func TestStmt_ExecContext(t *testing.T) {
 			return getOperationStatusResp, nil
 		}
 
-		testClient := &client.TestClient{
-			FnExecuteStatement:   executeStatement,
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+
+				FnExecuteStatement:   executeStatement,
+				FnGetOperationStatus: getOperationStatus,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		testQuery := "insert 10"
 		testStmt := &stmt{
@@ -142,14 +146,17 @@ func TestStmt_QueryContext(t *testing.T) {
 			return getOperationStatusResp, nil
 		}
 
-		testClient := &client.TestClient{
-			FnExecuteStatement:   executeStatement,
-			FnGetOperationStatus: getOperationStatus,
+		tclientc := func() (cli_service.TCLIService, error) {
+			return &client.TestClient{
+
+				FnExecuteStatement:   executeStatement,
+				FnGetOperationStatus: getOperationStatus,
+			}, nil
 		}
 		testConn := &conn{
-			session: getTestSession(),
-			client:  testClient,
-			cfg:     config.WithDefaults(),
+			session:  getTestSession(),
+			tclientc: tclientc,
+			cfg:      config.WithDefaults(),
 		}
 		testQuery := "select 1"
 		testStmt := &stmt{

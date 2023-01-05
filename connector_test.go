@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/databricks/databricks-sql-go/auth/pat"
 	"github.com/databricks/databricks-sql-go/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,6 +38,7 @@ func TestNewConnector(t *testing.T) {
 			Port:           port,
 			Protocol:       "https",
 			AccessToken:    accessToken,
+			Authenticator:  &pat.PATAuth{AccessToken: accessToken},
 			HTTPPath:       "/" + httpPath,
 			MaxRows:        maxRows,
 			QueryTimeout:   timeout,
@@ -69,6 +71,7 @@ func TestNewConnector(t *testing.T) {
 			Port:          port,
 			Protocol:      "https",
 			AccessToken:   accessToken,
+			Authenticator: &pat.PATAuth{AccessToken: accessToken},
 			HTTPPath:      "/" + httpPath,
 			MaxRows:       maxRows,
 			SessionParams: sessionParams,
