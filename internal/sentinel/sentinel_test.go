@@ -103,10 +103,10 @@ func TestWatch(t *testing.T) {
 		assert.Nil(t, res)
 		assert.Error(t, err)
 	})
-	t.Run("it should cancel with context cancelation", func(t *testing.T) {
+	t.Run("it should cancel with context cancellation", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(25 * time.Millisecond)
 			cancel()
 		}()
 		statusFnCalls := 0
@@ -146,7 +146,7 @@ func TestWatch(t *testing.T) {
 	t.Run("it should call cancelFn upon cancellation while polling", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(20 * time.Millisecond)
 			cancel()
 		}()
 		statusFnCalls := 0
@@ -169,6 +169,57 @@ func TestWatch(t *testing.T) {
 		assert.Equal(t, cancelFnCalls, 1)
 		assert.Nil(t, res)
 		assert.Error(t, err)
+	})
+	t.Run("it should wrap cancelFn error on context timeout", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(20 * time.Millisecond)
+			cancel()
+		}()
+		statusFnCalls := 0
+		cancelFnCalls := 0
+		var statusFn = func() (Done, any, error) {
+			statusFnCalls++
+			return func() bool {
+				return false
+			}, nil, nil
+		}
+		s := Sentinel{
+			StatusFn: statusFn,
+			OnCancelFn: func() (any, error) {
+				cancelFnCalls++
+				return nil, fmt.Errorf("cancel error")
+			},
+		}
+		status, res, err := s.Watch(ctx, 0, 15*time.Second)
+		assert.Equal(t, WatchCanceled, status)
+		assert.Equal(t, cancelFnCalls, 1)
+		assert.Nil(t, res)
+		assert.Error(t, err)
+		assert.ErrorContains(t, err, "cancel error")
+	})
+	t.Run("it should wrap cancelFn error on sentinel timeout", func(t *testing.T) {
+		statusFnCalls := 0
+		cancelFnCalls := 0
+		var statusFn = func() (Done, any, error) {
+			statusFnCalls++
+			return func() bool {
+				return false
+			}, nil, nil
+		}
+		s := Sentinel{
+			StatusFn: statusFn,
+			OnCancelFn: func() (any, error) {
+				cancelFnCalls++
+				return nil, fmt.Errorf("cancel error")
+			},
+		}
+		status, res, err := s.Watch(context.Background(), 0, 10*time.Second)
+		assert.Equal(t, WatchCanceled, status)
+		assert.Equal(t, cancelFnCalls, 1)
+		assert.Nil(t, res)
+		assert.Error(t, err)
+		assert.ErrorContains(t, err, "cancel error")
 	})
 	t.Run("it should timeout even when calling cancelFn", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
@@ -274,5 +325,34 @@ func TestWatch(t *testing.T) {
 		assert.Equal(t, 1, statusFnCalls)
 		assert.Nil(t, res)
 		assert.ErrorContains(t, err, "failed")
+	})
+	t.Run("it should not panic inside go routine", func(t *testing.T) {
+		statusFnCalls := 0
+		cancelFnCalls := 0
+		doneFnCalls := 0
+
+		s := Sentinel{
+			StatusFn: func() (Done, any, error) {
+				statusFnCalls++
+				return func() bool {
+					return true
+				}, nil, nil
+			},
+			OnCancelFn: func() (any, error) {
+				cancelFnCalls++
+				return nil, nil
+			},
+			OnDoneFn: func(statusResp any) (any, error) {
+				doneFnCalls++
+				panic("I panicked")
+			},
+		}
+		status, res, err := s.Watch(context.Background(), 0, 0)
+		assert.Equal(t, WatchErr, status)
+		assert.Equal(t, 1, statusFnCalls)
+		assert.Equal(t, 1, doneFnCalls)
+		assert.Equal(t, 0, cancelFnCalls)
+		assert.Nil(t, res)
+		assert.ErrorContains(t, err, "recovered")
 	})
 }

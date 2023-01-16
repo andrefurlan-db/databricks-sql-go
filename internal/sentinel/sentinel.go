@@ -2,6 +2,7 @@ package sentinel
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/databricks/databricks-sql-go/logger"
@@ -95,7 +96,24 @@ func (s Sentinel) Watch(ctx context.Context, interval, timeout time.Duration) (W
 			if done() {
 				intervalTimer.Stop()
 				if s.OnDoneFn != nil {
-					go processor(statusResp)
+
+					go func() {
+						defer func() {
+							if r := recover(); r != nil {
+								var err error
+								switch e := r.(type) {
+								case error:
+									err = e
+								default:
+									err = fmt.Errorf("recovered error %v", e)
+								}
+								err = errors.WithStack(err)
+								log.Err(err).Msgf("OnDoneFn panicked")
+								errCh <- err
+							}
+						}()
+						processor(statusResp)
+					}()
 				} else {
 					return WatchSuccess, statusResp, nil
 				}
@@ -110,10 +128,11 @@ func (s Sentinel) Watch(ctx context.Context, interval, timeout time.Duration) (W
 				s.onCancelFnCalled = true
 				_, err := s.OnCancelFn()
 				if err != nil {
-					log.Err(err).Msg("cancel failed")
-					return WatchCanceled, nil, errors.Wrap(err, ctx.Err().Error())
+					msg := "cancel failed after context deadline exceeded"
+					log.Err(err).Msg(msg)
+					return WatchCanceled, nil, errors.Wrap(err, msg)
 				}
-				log.Debug().Msgf("cancel success")
+				log.Debug().Msg("cancel success")
 			}
 			return WatchCanceled, nil, errors.Wrap(ctx.Err(), "sentinel context done")
 		case <-timeoutTimerCh:
@@ -124,8 +143,9 @@ func (s Sentinel) Watch(ctx context.Context, interval, timeout time.Duration) (W
 				s.onCancelFnCalled = true
 				_, err := s.OnCancelFn()
 				if err != nil {
-					log.Err(err).Msg("cancel failed")
-					return WatchCanceled, nil, errors.Wrap(err, ctx.Err().Error())
+					msg := "cancel failed after timeout exceeded"
+					log.Err(err).Msg(msg)
+					return WatchCanceled, nil, errors.Wrap(err, msg)
 				}
 				log.Debug().Msgf("cancel success")
 			}
