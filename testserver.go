@@ -44,6 +44,12 @@ func (h *thriftHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			h.count500_5_retries = 0
 		}
+	case "/bearer":
+		auth := r.Header.Get("Authorization")
+		_, err := w.Write([]byte(auth))
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	thriftHandler := thrift.NewThriftHandlerFunc(h.processor, h.inPfactory, h.outPfactory)

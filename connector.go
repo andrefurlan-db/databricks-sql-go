@@ -8,12 +8,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/databricks/databricks-sql-go/auth/pat"
+	"github.com/databricks/databricks-sql-go/auth/noop"
+	"github.com/databricks/databricks-sql-go/auth/sdk"
+	"github.com/databricks/databricks-sql-go/auth/token"
 	"github.com/databricks/databricks-sql-go/driverctx"
 	"github.com/databricks/databricks-sql-go/internal/cli_service"
 	"github.com/databricks/databricks-sql-go/internal/client"
 	"github.com/databricks/databricks-sql-go/internal/config"
 	"github.com/databricks/databricks-sql-go/logger"
+	"golang.org/x/oauth2"
 )
 
 type connector struct {
@@ -107,8 +110,13 @@ func WithServerHostname(host string) connOption {
 	return func(c *config.Config) {
 		if host == "localhost" {
 			c.Protocol = "http"
+			c.Authenticator = &noop.NoopAuth{}
 		}
 		c.Host = host
+		switch v := c.Authenticator.(type) {
+		case *sdk.SdkAuth:
+			v.Host = host
+		}
 	}
 }
 
@@ -128,19 +136,6 @@ func WithRetries(retryMax int, retryWaitMin time.Duration, retryWaitMax time.Dur
 		c.RetryWaitMax = retryWaitMax
 		c.RetryWaitMin = retryWaitMin
 		c.RetryMax = retryMax
-	}
-}
-
-// WithAccessToken sets up the Personal Access Token. Mandatory for now.
-func WithAccessToken(token string) connOption {
-	return func(c *config.Config) {
-		if token != "" {
-			c.AccessToken = token
-			pat := &pat.PATAuth{
-				AccessToken: token,
-			}
-			c.Authenticator = pat
-		}
 	}
 }
 
@@ -203,3 +198,103 @@ func WithSessionParams(params map[string]string) connOption {
 		c.SessionParams = params
 	}
 }
+
+func WithNoAuth() connOption {
+	return func(c *config.Config) {
+		c.Authenticator = &noop.NoopAuth{}
+	}
+}
+
+// WithAccessToken sets up the Personal Access Token. Mandatory for now.
+func WithAccessToken(accessToken string) connOption {
+	return func(c *config.Config) {
+		c.AccessToken = accessToken
+		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})
+		c.Authenticator = &token.TokenAuth{
+			TokenSource: tokenSource,
+		}
+	}
+}
+
+// WithTokenSource allows for custom token-based authentication flows
+func WithTokenSource(tokenSource oauth2.TokenSource) connOption {
+	return func(c *config.Config) {
+		c.Authenticator = &token.TokenAuth{
+			TokenSource: tokenSource,
+		}
+	}
+}
+
+func WithAzureADAuth(AzureClientID, AzureClientSecret, AzureTenantID, AzureResourceID string) connOption {
+	return func(c *config.Config) {
+		sdkAuth := &sdk.SdkAuth{}
+		sdkAuth.Host = c.Host
+		sdkAuth.AzureClientID = AzureClientID
+		sdkAuth.AzureClientSecret = AzureClientSecret
+		sdkAuth.AzureTenantID = AzureTenantID
+		sdkAuth.AzureResourceID = AzureResourceID
+		c.Authenticator = sdkAuth
+	}
+}
+
+func WithGoogleServiceAccountAuth(serviceAccount string) connOption {
+	return func(c *config.Config) {
+		sdkAuth := &sdk.SdkAuth{}
+		sdkAuth.Host = c.Host
+		sdkAuth.GoogleServiceAccount = serviceAccount
+	}
+}
+
+func WithGoogleCredentialsAuth(credentials string) connOption {
+	return func(c *config.Config) {
+		sdkAuth := &sdk.SdkAuth{}
+		sdkAuth.Host = c.Host
+		sdkAuth.GoogleCredentials = credentials
+	}
+}
+
+/*
+// Config represents configuration for Databricks Connectivity
+type Config struct {
+	// Connection profile specified within ~/.databrickscfg.
+	Profile string `name:"profile" env:"DATABRICKS_CONFIG_PROFILE"`
+
+	// Location of the Databricks CLI credentials file, that is created
+	// by `databricks configure --token` command. By default, it is located
+	// in ~/.databrickscfg.
+	ConfigFile string `name:"config_file" env:"DATABRICKS_CONFIG_FILE"`
+
+	GoogleServiceAccount string `name:"google_service_account" env:"DATABRICKS_GOOGLE_SERVICE_ACCOUNT" auth:"google"`
+	GoogleCredentials    string `name:"google_credentials" env:"GOOGLE_CREDENTIALS" auth:"google,sensitive"`
+
+	// Azure Resource Manager ID for Azure Databricks workspace, which is exchanged for a Host
+	AzureResourceID string `name:"azure_workspace_resource_id" env:"DATABRICKS_AZURE_RESOURCE_ID" auth:"azure"`
+
+	AzureUseMSI       bool   `name:"azure_use_msi" env:"ARM_USE_MSI" auth:"azure"`
+	AzureClientSecret string `name:"azure_client_secret" env:"ARM_CLIENT_SECRET" auth:"azure,sensitive"`
+	AzureClientID     string `name:"azure_client_id" env:"ARM_CLIENT_ID" auth:"azure"`
+	AzureTenantID     string `name:"azure_tenant_id" env:"ARM_TENANT_ID" auth:"azure"`
+
+	// AzureEnvironment (Public, UsGov, China, Germany) has specific set of API endpoints.
+	AzureEnvironment string `name:"azure_environment" env:"ARM_ENVIRONMENT"`
+
+	// Azure Login Application ID. Must be set if authenticating for non-production workspaces.
+	AzureLoginAppID string `name:"azure_login_app_id" env:"DATABRICKS_AZURE_LOGIN_APP_ID" auth:"azure"`
+
+	// When multiple auth attributes are available in the environment, use the auth type
+	// specified by this argument. This argument also holds currently selected auth.
+	AuthType string `name:"auth_type" env:"DATABRICKS_AUTH_TYPE" auth:"-"`
+
+
+	ClientID     string `name:"client_id" env:"DATABRICKS_CLIENT_ID"`
+	ClientSecret string `name:"client_secret" env:"DATABRICKS_CLIENT_SECRET"`
+
+}
+*/
+
+// type TokenSource interface {
+// 	// Token returns a token or an error.
+// 	// Token must be safe for concurrent use by multiple goroutines.
+// 	// The returned Token must not be modified.
+// 	Token() (*Token, error)
+// }

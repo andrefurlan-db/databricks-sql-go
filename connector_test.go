@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/databricks/databricks-sql-go/auth/pat"
+	"github.com/databricks/databricks-sql-go/auth/token"
 	"github.com/databricks/databricks-sql-go/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 )
 
 func TestNewConnector(t *testing.T) {
@@ -39,7 +40,7 @@ func TestNewConnector(t *testing.T) {
 			Port:           port,
 			Protocol:       "https",
 			AccessToken:    accessToken,
-			Authenticator:  &pat.PATAuth{AccessToken: accessToken},
+			Authenticator:  &token.TokenAuth{TokenSource: oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})},
 			HTTPPath:       "/" + httpPath,
 			MaxRows:        maxRows,
 			QueryTimeout:   timeout,
@@ -75,7 +76,7 @@ func TestNewConnector(t *testing.T) {
 			Port:          port,
 			Protocol:      "https",
 			AccessToken:   accessToken,
-			Authenticator: &pat.PATAuth{AccessToken: accessToken},
+			Authenticator: &token.TokenAuth{TokenSource: oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})},
 			HTTPPath:      "/" + httpPath,
 			MaxRows:       maxRows,
 			SessionParams: sessionParams,
@@ -108,7 +109,7 @@ func TestNewConnector(t *testing.T) {
 			Port:          port,
 			Protocol:      "https",
 			AccessToken:   accessToken,
-			Authenticator: &pat.PATAuth{AccessToken: accessToken},
+			Authenticator: &token.TokenAuth{TokenSource: oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})},
 			HTTPPath:      "/" + httpPath,
 			MaxRows:       maxRows,
 			SessionParams: sessionParams,

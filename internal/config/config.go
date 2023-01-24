@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/databricks/databricks-sql-go/auth"
-	"github.com/databricks/databricks-sql-go/auth/noop"
-	"github.com/databricks/databricks-sql-go/auth/pat"
+	"github.com/databricks/databricks-sql-go/auth/sdk"
+	"github.com/databricks/databricks-sql-go/auth/token"
 	"github.com/databricks/databricks-sql-go/internal/cli_service"
 	"github.com/databricks/databricks-sql-go/logger"
 	"github.com/pkg/errors"
+	"golang.org/x/oauth2"
 )
 
 // Driver Configurations.
@@ -138,7 +139,7 @@ func (ucfg UserConfig) WithDefaults() UserConfig {
 		ucfg.Port = 443
 	}
 	if ucfg.Authenticator == nil {
-		ucfg.Authenticator = &noop.NoopAuth{}
+		ucfg.Authenticator = &sdk.SdkAuth{}
 	}
 	if ucfg.SessionParams == nil {
 		ucfg.SessionParams = make(map[string]string)
@@ -202,10 +203,9 @@ func ParseDSN(dsn string) (UserConfig, error) {
 		}
 		if ok {
 			ucfg.AccessToken = pass
-			pat := &pat.PATAuth{
-				AccessToken: pass,
+			ucfg.Authenticator = &token.TokenAuth{
+				TokenSource: oauth2.StaticTokenSource(&oauth2.Token{AccessToken: pass}),
 			}
-			ucfg.Authenticator = pat
 		}
 	} else {
 		if name != "" {

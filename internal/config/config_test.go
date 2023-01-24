@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/databricks/databricks-sql-go/auth/noop"
-	"github.com/databricks/databricks-sql-go/auth/pat"
+	"github.com/databricks/databricks-sql-go/auth/token"
 	"github.com/databricks/databricks-sql-go/internal/cli_service"
+	"golang.org/x/oauth2"
 )
 
 func TestParseConfig(t *testing.T) {
@@ -31,7 +32,7 @@ func TestParseConfig(t *testing.T) {
 				Host:          "example.cloud.databricks.com",
 				Port:          443,
 				MaxRows:       defaultMaxRows,
-				Authenticator: &pat.PATAuth{AccessToken: "supersecret"},
+				Authenticator: &token.TokenAuth{TokenSource: ToTokenSource("supersecret")},
 				AccessToken:   "supersecret",
 				HTTPPath:      "/sql/1.0/endpoints/12346a5b5b0e123a",
 				SessionParams: make(map[string]string),
@@ -51,7 +52,7 @@ func TestParseConfig(t *testing.T) {
 				Port:          443,
 				MaxRows:       defaultMaxRows,
 				AccessToken:   "supersecret",
-				Authenticator: &pat.PATAuth{AccessToken: "supersecret"},
+				Authenticator: &token.TokenAuth{TokenSource: ToTokenSource("supersecret")},
 				HTTPPath:      "/sql/1.0/endpoints/12346a5b5b0e123a",
 				SessionParams: make(map[string]string),
 				RetryMax:      4,
@@ -104,7 +105,7 @@ func TestParseConfig(t *testing.T) {
 				Host:          "example.cloud.databricks.com",
 				Port:          8000,
 				AccessToken:   "supersecret",
-				Authenticator: &pat.PATAuth{AccessToken: "supersecret"},
+				Authenticator: &token.TokenAuth{TokenSource: ToTokenSource("supersecret")},
 				HTTPPath:      "/sql/1.0/endpoints/12346a5b5b0e123a",
 				QueryTimeout:  100 * time.Second,
 				MaxRows:       1000,
@@ -124,7 +125,7 @@ func TestParseConfig(t *testing.T) {
 				Host:          "example.cloud.databricks.com",
 				Port:          8000,
 				AccessToken:   "supersecret",
-				Authenticator: &pat.PATAuth{AccessToken: "supersecret"},
+				Authenticator: &token.TokenAuth{TokenSource: ToTokenSource("supersecret")},
 				HTTPPath:      "/sql/1.0/endpoints/12346a5b5b0e123a",
 				QueryTimeout:  100 * time.Second,
 				MaxRows:       1000,
@@ -164,7 +165,7 @@ func TestParseConfig(t *testing.T) {
 				Port:          8000,
 				MaxRows:       defaultMaxRows,
 				AccessToken:   "supersecret",
-				Authenticator: &pat.PATAuth{AccessToken: "supersecret"},
+				Authenticator: &token.TokenAuth{TokenSource: ToTokenSource("supersecret")},
 				HTTPPath:      "/sql/1.0/endpoints/12346a5b5b0e123b",
 				Catalog:       "default",
 				SessionParams: make(map[string]string),
@@ -184,7 +185,7 @@ func TestParseConfig(t *testing.T) {
 				Port:           8000,
 				MaxRows:        defaultMaxRows,
 				AccessToken:    "supersecret",
-				Authenticator:  &pat.PATAuth{AccessToken: "supersecret"},
+				Authenticator:  &token.TokenAuth{TokenSource: ToTokenSource("supersecret")},
 				HTTPPath:       "/sql/1.0/endpoints/12346a5b5b0e123b",
 				UserAgentEntry: "partner-name",
 				SessionParams:  make(map[string]string),
@@ -204,7 +205,7 @@ func TestParseConfig(t *testing.T) {
 				Port:          8000,
 				MaxRows:       defaultMaxRows,
 				AccessToken:   "supersecret2",
-				Authenticator: &pat.PATAuth{AccessToken: "supersecret2"},
+				Authenticator: &token.TokenAuth{TokenSource: ToTokenSource("supersecret2")},
 				HTTPPath:      "/sql/1.0/endpoints/12346a5b5b0e123a",
 				Schema:        "system",
 				SessionParams: make(map[string]string),
@@ -223,7 +224,7 @@ func TestParseConfig(t *testing.T) {
 				Host:           "example.cloud.databricks.com",
 				Port:           8000,
 				AccessToken:    "supersecret2",
-				Authenticator:  &pat.PATAuth{AccessToken: "supersecret2"},
+				Authenticator:  &token.TokenAuth{TokenSource: ToTokenSource("supersecret2")},
 				HTTPPath:       "/sql/1.0/endpoints/12346a5b5b0e123a",
 				QueryTimeout:   100 * time.Second,
 				MaxRows:        1000,
@@ -247,7 +248,7 @@ func TestParseConfig(t *testing.T) {
 				Port:          443,
 				MaxRows:       defaultMaxRows,
 				AccessToken:   "supersecret",
-				Authenticator: &pat.PATAuth{AccessToken: "supersecret"},
+				Authenticator: &token.TokenAuth{TokenSource: ToTokenSource("supersecret")},
 				SessionParams: make(map[string]string),
 				RetryMax:      4,
 				RetryWaitMin:  1 * time.Second,
@@ -264,7 +265,7 @@ func TestParseConfig(t *testing.T) {
 				Host:          "example.cloud.databricks.com",
 				Port:          443,
 				AccessToken:   "supersecret2",
-				Authenticator: &pat.PATAuth{AccessToken: "supersecret2"},
+				Authenticator: &token.TokenAuth{TokenSource: ToTokenSource("supersecret2")},
 				QueryTimeout:  100 * time.Second,
 				MaxRows:       1000,
 				Catalog:       "default",
@@ -321,7 +322,7 @@ func TestParseConfig(t *testing.T) {
 				Port:          443,
 				Protocol:      "https",
 				AccessToken:   "supersecret2",
-				Authenticator: &pat.PATAuth{AccessToken: "supersecret2"},
+				Authenticator: &token.TokenAuth{TokenSource: ToTokenSource("supersecret2")},
 				MaxRows:       1000,
 				QueryTimeout:  100 * time.Second,
 				Catalog:       "default",
@@ -446,4 +447,8 @@ func TestConfig_DeepCopy(t *testing.T) {
 			t.Errorf("DeepCopy() = %v, want %v", cfg_copy, cfg)
 		}
 	})
+}
+
+func ToTokenSource(accessToken string) oauth2.TokenSource {
+	return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})
 }
