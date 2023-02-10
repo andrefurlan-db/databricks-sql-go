@@ -27,6 +27,7 @@ var resultIndex int
 
 type ThriftServiceClient struct {
 	*cli_service.TCLIServiceClient
+	thriftHttpClient *thrift.THttpClient
 }
 
 // OpenSession is a wrapper around the thrift operation OpenSession
@@ -44,7 +45,7 @@ func (tsc *ThriftServiceClient) OpenSession(ctx context.Context, req *cli_servic
 		_ = os.WriteFile(fmt.Sprintf("OpenSession%d.json", resultIndex), j, 0600)
 		resultIndex++
 	}
-	return resp, CheckStatus(resp)
+	return resp, CheckStatus(resp, GetHeaders(tsc.thriftHttpClient))
 }
 
 // CloseSession is a wrapper around the thrift operation CloseSession
@@ -61,7 +62,7 @@ func (tsc *ThriftServiceClient) CloseSession(ctx context.Context, req *cli_servi
 		_ = os.WriteFile(fmt.Sprintf("CloseSession%d.json", resultIndex), j, 0600)
 		resultIndex++
 	}
-	return resp, CheckStatus(resp)
+	return resp, CheckStatus(resp, GetHeaders(tsc.thriftHttpClient))
 }
 
 // FetchResults is a wrapper around the thrift operation FetchResults
@@ -78,7 +79,7 @@ func (tsc *ThriftServiceClient) FetchResults(ctx context.Context, req *cli_servi
 		_ = os.WriteFile(fmt.Sprintf("FetchResults%d.json", resultIndex), j, 0600)
 		resultIndex++
 	}
-	return resp, CheckStatus(resp)
+	return resp, CheckStatus(resp, GetHeaders(tsc.thriftHttpClient))
 }
 
 // GetResultSetMetadata is a wrapper around the thrift operation GetResultSetMetadata
@@ -95,7 +96,7 @@ func (tsc *ThriftServiceClient) GetResultSetMetadata(ctx context.Context, req *c
 		_ = os.WriteFile(fmt.Sprintf("ExecuteStatement%d.json", resultIndex), j, 0600)
 		resultIndex++
 	}
-	return resp, CheckStatus(resp)
+	return resp, CheckStatus(resp, GetHeaders(tsc.thriftHttpClient))
 }
 
 // ExecuteStatement is a wrapper around the thrift operation ExecuteStatement
@@ -118,7 +119,7 @@ func (tsc *ThriftServiceClient) ExecuteStatement(ctx context.Context, req *cli_s
 		log := logger.WithContext(driverctx.ConnIdFromContext(ctx), driverctx.CorrelationIdFromContext(ctx), SprintGuid(resp.OperationHandle.OperationId.GUID))
 		defer log.Duration(msg, start)
 	}
-	return resp, CheckStatus(resp)
+	return resp, CheckStatus(resp, GetHeaders(tsc.thriftHttpClient))
 }
 
 // GetOperationStatus is a wrapper around the thrift operation GetOperationStatus
@@ -135,7 +136,7 @@ func (tsc *ThriftServiceClient) GetOperationStatus(ctx context.Context, req *cli
 		_ = os.WriteFile(fmt.Sprintf("GetOperationStatus%d.json", resultIndex), j, 0600)
 		resultIndex++
 	}
-	return resp, CheckStatus(resp)
+	return resp, CheckStatus(resp, GetHeaders(tsc.thriftHttpClient))
 }
 
 // CloseOperation is a wrapper around the thrift operation CloseOperation
@@ -152,7 +153,7 @@ func (tsc *ThriftServiceClient) CloseOperation(ctx context.Context, req *cli_ser
 		_ = os.WriteFile(fmt.Sprintf("CloseOperation%d.json", resultIndex), j, 0600)
 		resultIndex++
 	}
-	return resp, CheckStatus(resp)
+	return resp, CheckStatus(resp, GetHeaders(tsc.thriftHttpClient))
 }
 
 // CancelOperation is a wrapper around the thrift operation CancelOperation
@@ -169,7 +170,7 @@ func (tsc *ThriftServiceClient) CancelOperation(ctx context.Context, req *cli_se
 		_ = os.WriteFile(fmt.Sprintf("CancelOperation%d.json", resultIndex), j, 0600)
 		resultIndex++
 	}
-	return resp, CheckStatus(resp)
+	return resp, CheckStatus(resp, GetHeaders(tsc.thriftHttpClient))
 }
 
 // InitThriftClient is a wrapper of the http transport, so we can have access to response code and headers.
@@ -200,6 +201,7 @@ func InitThriftClient(cfg *config.Config, httpclient *http.Client) (*ThriftServi
 	}
 
 	var tTrans thrift.TTransport
+	var thriftHttpClient *thrift.THttpClient
 	var err error
 
 	switch cfg.ThriftTransport {
@@ -213,7 +215,7 @@ func InitThriftClient(cfg *config.Config, httpclient *http.Client) (*ThriftServi
 
 		tTrans, err = thrift.NewTHttpClientWithOptions(endpoint, thrift.THttpClientOptions{Client: httpclient})
 
-		thriftHttpClient := tTrans.(*thrift.THttpClient)
+		thriftHttpClient = tTrans.(*thrift.THttpClient)
 		userAgent := fmt.Sprintf("%s/%s", cfg.DriverName, cfg.DriverVersion)
 		if cfg.UserAgentEntry != "" {
 			userAgent = fmt.Sprintf("%s/%s (%s)", cfg.DriverName, cfg.DriverVersion, cfg.UserAgentEntry)
@@ -232,7 +234,7 @@ func InitThriftClient(cfg *config.Config, httpclient *http.Client) (*ThriftServi
 	iprot := protocolFactory.GetProtocol(tTrans)
 	oprot := protocolFactory.GetProtocol(tTrans)
 	tclient := cli_service.NewTCLIServiceClient(thrift.NewTStandardClient(iprot, oprot))
-	tsClient := &ThriftServiceClient{tclient}
+	tsClient := &ThriftServiceClient{tclient, thriftHttpClient}
 	return tsClient, nil
 }
 
@@ -243,11 +245,15 @@ type ThriftResponse interface {
 
 // CheckStatus checks the status code after a thrift operation.
 // Returns nil if the operation is successful or still executing, otherwise returns an error.
-func CheckStatus(resp interface{}) error {
+func CheckStatus(resp interface{}, headers map[string]string) error {
 	rpcresp, ok := resp.(ThriftResponse)
 	if ok {
 		status := rpcresp.GetStatus()
 		if status.StatusCode == cli_service.TStatusCode_ERROR_STATUS {
+			displayMessage := status.GetDisplayMessage()
+			if displayMessage != "" {
+				return errors.New(displayMessage)
+			}
 			return errors.New(status.GetErrorMessage())
 		}
 		if status.StatusCode == cli_service.TStatusCode_INVALID_HANDLE_STATUS {
@@ -259,6 +265,20 @@ func CheckStatus(resp interface{}) error {
 	}
 
 	return errors.New("thrift: invalid response")
+}
+
+func GetHeaders(c *thrift.THttpClient) map[string]string {
+
+	ret := make(map[string]string)
+	ret["X-Databricks-Reason-Phrase"] = ""
+	ret["X-Thriftserver-Error-Message"] = ""
+	ret["x-databricks-error-or-redirect-message"] = ""
+	ret["X-Databricks-Org-Id"] = ""
+
+	for k := range ret {
+		ret[k] = c.GetHeader(k)
+	}
+	return ret
 }
 
 // SprintGuid is a convenience function to format a byte array into GUID.
@@ -379,16 +399,16 @@ type leveledLogger struct {
 }
 
 func (l *leveledLogger) Error(msg string, keysAndValues ...interface{}) {
-	logger.Error().Msg(msg)
+	logger.Error().Msg(fmt.Sprintf("%s: %v", msg, keysAndValues))
 }
 func (l *leveledLogger) Info(msg string, keysAndValues ...interface{}) {
-	logger.Info().Msg(msg)
+	logger.Info().Msg(fmt.Sprintf("%s: %v", msg, keysAndValues))
 }
 func (l *leveledLogger) Debug(msg string, keysAndValues ...interface{}) {
-	logger.Debug().Msg(msg)
+	logger.Debug().Msg(fmt.Sprintf("%s: %v", msg, keysAndValues))
 }
 func (l *leveledLogger) Warn(msg string, keysAndValues ...interface{}) {
-	logger.Warn().Msg(msg)
+	logger.Warn().Msg(fmt.Sprintf("%s: %v", msg, keysAndValues))
 }
 
 func errorHandler(resp *http.Response, err error, numTries int) (*http.Response, error) {
